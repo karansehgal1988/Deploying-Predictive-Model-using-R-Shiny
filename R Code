@@ -1,0 +1,75 @@
+library(shiny)
+library(DT)
+library(tidyverse)
+library(nnet)
+
+# Define UI for application that draws a histogram
+ui <- fluidPage(
+    # Application title
+    titlePanel("Iris Dataset Predictions"),
+    # Sidebar with a slider input for number of bins 
+    sidebarLayout(
+        sidebarPanel(
+            # Input: Select a file ----
+            fileInput("file1", "upload csv file here",
+                      multiple = FALSE,
+                      accept = c("text/csv",
+                                 "text/comma-separated-values,text/plain",
+                                 ".csv")), 
+            
+            
+            # Button
+            downloadButton("downloadData", "Download the Predictions")
+        ),
+        # Show the table with the predictions
+        mainPanel(
+            DT::dataTableOutput("mytable")
+        )
+    )
+)
+# Define server logic required to draw a histogram
+server <- function(input, output) {
+    
+    library(shiny)
+    library(DT)
+    library(tidyverse)
+    library(nnet)
+    
+    irisModel<-multinom(Species~Sepal.Length+Sepal.Width+Petal.Length+Petal.Width,data = iris)
+    saveRDS(irisModel, "irisModel.rds")
+    
+    
+    
+    irisModel <- readRDS("irisModel.rds")
+    
+    
+    reactiveDF<-reactive({
+        req(input$file1)
+        df <- read.csv(input$file1$datapath, stringsAsFactors = TRUE)
+        colnames(df)[1]="Sepal.Length"
+        df$predictions<-predict(irisModel, newdata =df , type ="class")
+        return(df)
+        
+    })
+    
+    output$mytable = DT::renderDataTable({
+        req(input$file1)
+        
+        return(DT::datatable(reactiveDF(),  options = list(pageLength = 100), filter = c("top")))
+    })
+    
+    
+    # Downloadable csv of selected dataset ----
+    output$downloadData <- downloadHandler(
+        filename = function() {
+            paste("data-", Sys.Date(), ".csv", sep="")
+        },
+        content = function(file) {
+            write.csv(reactiveDF(), file, row.names = FALSE)
+        }
+    )
+    
+    
+}
+# Run the application 
+shinyApp(ui = ui, server = server)
